@@ -1,0 +1,6 @@
+# Runtime data (DB, keys, connections) and the mounted patch script.
+# Never commit any of this.
+data/
+.env
+*.sqlite
+*.sqlite-*

@@ -1,0 +1,74 @@
+# Idempotent, reversible hardening for 9Router.
+#
+# Two separate concerns live here on purpose, because they touch the same
+# service and both must survive `docker compose up`:
+#
+#   1. Container hardening (user / cap_drop / no-new-privileges / read_only:false)
+#   2. The boot-time CoT patch (patch/apply.mjs), which needs the exec-form
+#      entrypoint below because the stock one runs chown + su-exec and needs
+#      CAP_CHOWN / CAP_SETGID, defeating cap_drop.
+#
+# If you only want the CoT patch, keep `image`, `volumes`, `env_file` and
+# `entrypoint`; everything under "Hardening" is optional.
+
+services:
+  9router:
+    image: decolua/9router:latest
+    container_name: 9router
+    restart: unless-stopped
+
+    # The stock entrypoint runs chown + `su-exec node`, which needs CAP_CHOWN /
+    # CAP_SETGID and defeats cap_drop. We already run as uid 1000 (== `sam`)
+    # with a pre-owned data dir, so skip the wrapper and exec node directly.
+    #
+    # The first command is the CoT pre-pass. It is deliberately fail-open:
+    #   - apply.mjs always exits 0 (it catches everything and only warns)
+    #   - `;` not `&&`, so a patch failure can never block boot
+    #   - `exec` so node becomes PID 1 and receives SIGTERM from `compose stop`
+    #
+    # Patch target is a mounted path (/app/data/patch), so upgrading the image
+    # does not drop the script, and editing it needs no rebuild.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - node /app/data/patch/apply.mjs; exec node custom-server.js
+
+    # Bind loopback only. Access from other machines goes through tailscale serve
+    # (HTTPS + tailnet identity), never through a plaintext LAN port.
+    ports:
+      - "127.0.0.1:20128:20128"
+
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      PORT: "20128"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Dashboard is served over HTTPS via tailscale serve -> mark cookies Secure.
+      AUTH_COOKIE_SECURE: "true"
+
+    volumes:
+      # uid 1000 in the image == uid 1000 (sam) on the host, so no chown games.
+      # This single mount is what makes the CoT patch survive image upgrades.
+      - ./data:/app/data
+
+    # --- Hardening (optional) -------------------------------------------------
+    # The app needs no privileges: all AI traffic is outbound HTTPS and it never
+    # binds <1024, so CAP_NET_BIND_SERVICE isn't needed either.
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:size=256m
+    pids_limit: 512
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

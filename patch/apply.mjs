@@ -22,14 +22,14 @@ let patched = 0,
 try {
   for (const f of walk(ROOT)) {
     const s = fs.readFileSync(f, "utf8");
-    if (s.includes(PATCHED)) {
-      already++;
+    const hasPatched = s.includes(PATCHED);
+    if (!s.includes(ORIG)) {
+      if (hasPatched) already++;
       continue;
     }
-    if (!s.includes(ORIG)) continue;
     const n = s.split(ORIG).length - 1;
     if (n !== 1) {
-      console.warn(`[cot-patch] ${f}: ${n} occurrences, skipping`);
+      console.warn(`[cot-patch] ${f}: ${n} occurrences of ORIG, skipping`);
       continue;
     }
     fs.writeFileSync(f, s.replace(ORIG, PATCHED));

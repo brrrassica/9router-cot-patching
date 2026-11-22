@@ -201,7 +201,7 @@ BASE=http://127.0.0.1:20128 KEY=sk-... MODEL=amr-link/your-model ./verify/verify
 docker compose up -d --force-recreate 9router
 ```
 
-`./install.sh status` shows version, boot-log line, chunk md5 and patched state.
+`./install.sh status` shows version, latest cot-patch log line, chunk md5 and patched state.
 
 ---
 

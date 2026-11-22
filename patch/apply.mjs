@@ -17,7 +17,8 @@ const walk = (d, out = []) => {
 };
 
 let patched = 0,
-  already = 0;
+  already = 0,
+  ambiguous = 0;
 
 try {
   for (const f of walk(ROOT)) {
@@ -29,7 +30,8 @@ try {
     }
     const n = s.split(ORIG).length - 1;
     if (n !== 1) {
-      console.warn(`[cot-patch] ${f}: ${n} occurrences of ORIG, skipping`);
+      console.warn(`[cot-patch] ${f}: ${n} occurrences of ORIG, skipping (ambiguous)`);
+      ambiguous++;
       continue;
     }
     fs.writeFileSync(f, s.replace(ORIG, PATCHED));
@@ -37,10 +39,14 @@ try {
     patched++;
   }
 
-  if (patched === 0 && already === 0) {
+  if (patched === 0 && already === 0 && ambiguous === 0) {
     // Fail-open: image upgraded and the chunk changed. Router still boots.
     console.warn(
       `[cot-patch] WARNING: gate not found. Expected md5 ${KNOWN_MD5}. CoT lifting is OFF.`
+    );
+  } else if (ambiguous > 0) {
+    console.warn(
+      `[cot-patch] WARNING: done: ${patched} patched, ${already} already patched, ${ambiguous} ambiguous (skipped). CoT lifting may be OFF for skipped files.`
     );
   } else {
     console.log(`[cot-patch] done: ${patched} patched, ${already} already patched`);

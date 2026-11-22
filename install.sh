@@ -45,7 +45,8 @@ case "${1:-}" in
     echo "image:       $(docker inspect "$CONTAINER" --format '{{.Config.Image}}')"
     echo "app version: $(docker exec "$CONTAINER" node -e 'console.log(require("/app/package.json").version)' 2>/dev/null || echo '?')"
     echo -n "boot log:    "
-    docker logs "$CONTAINER" 2>&1 | grep -m1 'cot-patch' || echo '(no cot-patch line - entrypoint not patched)'
+    boot_line=$(docker logs "$CONTAINER" 2>&1 | grep -m1 'cot-patch' || true)
+    if [ -n "$boot_line" ]; then echo "$boot_line"; else echo '(no cot-patch line - entrypoint not patched)'; fi
     md5="$(docker exec "$CONTAINER" md5sum /app/.next/server/chunks/8895.js 2>/dev/null | cut -d' ' -f1)"
     echo "chunk md5:   ${md5:-?}"
     if [ "$md5" = "$ORIG_MD5" ]; then
